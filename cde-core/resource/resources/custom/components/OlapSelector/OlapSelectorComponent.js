@@ -1,14 +1,26 @@
 var OlapSelectorComponent = BaseComponent.extend({
 
   init: function() {
-    this.model = new OlapSelectorModel({
-      olapUtils: new wd.utils.OlapUtils({
+    var olapUtilsInstance = new wd.utils.OlapUtils({
           url: Dashboards.getWebAppPath() + wd.helpers.olap.getServiceUrl(),
           catalog: this.catalog,
           cube: this.cube,
           dimension: this.dimensionName
-      }),
-      title: this.title
+      });
+    
+    var cToFind = this.catalog;
+    var entry = _.find(olapUtilsInstance.getCatalogs(), function(c) {
+      return (c.schema.indexOf(cToFind)>=0);
+    });
+   
+    if(entry !== false) {
+      olapUtilsInstance.setCatalog(entry.name);
+    }
+    
+    this.model = new OlapSelectorModel({
+      olapUtils: olapUtilsInstance,
+      title: this.title,
+      multiselect: this.multiSelect
     });
     this.view = new OlapSelectorView({
       model: this.model,
@@ -28,9 +40,35 @@ var OlapSelectorComponent = BaseComponent.extend({
       }
     })
     this.view.render();
+
+    myself.parameters = myself.getParamValues(myself.parameters);
+    myself.model.set("parameters", myself.parameters);
   },
 
   getValue: function() {
     return _(this.model.get("values").where({selected:true})).map(function(m){return m.get("qualifiedName");});
-  }
+  },
+
+
+  getParamValues: function(overrides) {
+      params = ( overrides instanceof Array) ? Dashboards.propertiesArrayToObject(overrides) : ( overrides || {} );
+      paramValues = {};
+
+      _.each( params , function (value, name) {
+        value = Dashboards.getParameterValue(value);
+
+        if (_.isObject(value)){
+            value = JSON.stringify(value);
+        }
+
+        if (typeof value == 'function') {
+            value = value();
+        }
+
+        paramValues[name] = value;
+        paramValues.length = overrides.length;
+      });
+
+      return paramValues;
+    }
 });
